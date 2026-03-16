@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 )
 
@@ -114,7 +115,40 @@ func (s *LspServer) handleTextDocumentDefinition(req RPCRequest) {
 		return
 	}
 
-	_ = uri
+	symbol, err := s.wordAtPosition(uri, params.Position)
+	if err != nil {
+		s.sendResult(req.ID, nil)
+		return
+	}
+
+	var locations []Location
+
+	s.mu.Lock()
+	// TODO: i bet there's some algo i should use
+	for _, entry := range s.tagEntries {
+		if entry.Name == symbol {
+			content, err := s.getFileContent(entry.Path)
+			if err != nil {
+				s.sendMessage("failed to load content for: " + entry.Path)
+				continue
+			}
+
+			symbolRange := s.findSymbolRangeInFile(content, entry.Name, entry.Line)
+			locations = append(locations, Location{
+				URI:   pathToFileURI(entry.Path),
+				Range: symbolRange,
+			})
+		}
+	}
+	s.mu.Unlock()
+
+	if len(locations) == 0 {
+		s.sendResult(req.ID, nil)
+	} else if len(locations) == 1 {
+		s.sendResult(req.ID, locations[0])
+	} else {
+		s.sendResult(req.ID, locations)
+	}
 }
 
 func (s *LspServer) handleTextDocumentDocumentSymbol(req RPCRequest) {}
@@ -172,4 +206,48 @@ func (s *LspServer) handleTextDocumentCodeAction(req RPCRequest) {
 			},
 		},
 	})
+}
+
+func (s *LspServer) findSymbolRangeInFile(lines []string, symbolName string, lineNumber int) Range {
+	lineIdx := lineNumber - 1
+	if lineIdx < 0 || lineIdx >= len(lines) {
+		return Range{
+			Start: Position{Line: lineIdx, Character: 0},
+			End:   Position{Line: lineIdx, Character: 0},
+		}
+	}
+
+	lineContent := lines[lineIdx]
+	startChar := strings.Index(lineContent, symbolName)
+	if startChar == -1 {
+		return Range{
+			Start: Position{Line: lineIdx, Character: 0},
+			End:   Position{Line: lineIdx, Character: len([]rune(lineContent))},
+		}
+	}
+
+	endChar := startChar + len([]rune(symbolName))
+
+	return Range{
+		Start: Position{Line: lineIdx, Character: startChar},
+		End:   Position{Line: lineIdx, Character: endChar},
+	}
+}
+
+// getFileContent ... PLEASE LOCK THE MUTEXT FOR IT
+// gets file content from cache, or fallbacks to reading form the disk
+func (s *LspServer) getFileContent(fpath string) ([]string, error) {
+	content, ok := s.fileCache[fpath]
+	if ok {
+		return content, nil
+	}
+
+	contentBytes, err := os.ReadFile(fpath)
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(
+		string(contentBytes),
+		"\n",
+	), nil
 }

@@ -35,7 +35,12 @@ func (c *CTags) CheckIfInstalled() error {
 }
 
 func (c *CTags) Regenerate() error {
-	cmd := exec.Command(c.bin, "-R", "--output-format=u-ctags", "-f", c.tags, filepath.Dir(c.tags))
+	cmd := exec.Command(c.bin,
+		"-R",
+		"--output-format=u-ctags",
+		"--fields=+n",
+		"-f", c.tags,
+		filepath.Dir(c.tags))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("ctags failed: %w\n%s", err, out)

@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -114,7 +116,7 @@ func (s *LspServer) handleRequest(req RPCRequest) {
 	case "initialize":
 		s.handleInitialize(req)
 	case "initialized":
-		// here so we wound't fail
+		s.handleInitialized(req)
 	case "shutdown":
 		s.handleShutdown(req)
 	case "exit":
@@ -125,6 +127,8 @@ func (s *LspServer) handleRequest(req RPCRequest) {
 		s.handleTextDocumentDidChange(req)
 	case "textDocument/didClose":
 		s.handleTextDocumentDidClose(req)
+	case "textDocument/didSave":
+		// i dont want to fail on save
 	case "textDocument/definition":
 		s.handleTextDocumentDefinition(req)
 	case "textDocument/documentSymbol":
@@ -251,6 +255,59 @@ func (s *LspServer) setupSettingsAndReindexTags(settings *Settings) {
 	if err := s.reindex(); err != nil {
 		s.sendMessage("ctagls: failed to load tags: " + err.Error())
 	}
+}
+
+var ErrFileNotFound = errors.New("file not found, proably not opened?")
+
+func (s *LspServer) wordAtPosition(uri string, pos Position) (string, error) {
+	s.mu.RLock()
+	lines, ok := s.fileCache[uri]
+	s.mu.RUnlock()
+
+	if !ok {
+		return "", ErrFileNotFound
+	}
+
+	if int(pos.Line) >= len(lines) {
+		return "", nil
+	}
+
+	line := lines[pos.Line]
+
+	// LSP character offset is UTF-16, convert to byte offset
+	col := min(utf16OffsetToBytes(line, int(pos.Character)), len(line))
+
+	start := col
+	for start > 0 && isWordChar(rune(line[start-1])) {
+		start--
+	}
+
+	end := col
+	for end < len(line) && isWordChar(rune(line[end])) {
+		end++
+	}
+
+	return line[start:end], nil
+}
+
+func isWordChar(c rune) bool {
+	return unicode.IsLetter(c) || unicode.IsDigit(c) || c == '_'
+}
+
+func utf16OffsetToBytes(s string, utf16Offset int) int {
+	i := 0
+	for _, r := range s {
+		if utf16Offset <= 0 {
+			break
+		}
+		if r >= 0x10000 {
+			utf16Offset -= 2
+		} else {
+			utf16Offset -= 1
+		}
+		i += utf8.RuneLen(r)
+	}
+	return i
 }
 
 func isInvalidID(id *json.RawMessage) bool {
