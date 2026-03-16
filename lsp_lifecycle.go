@@ -10,10 +10,7 @@ type InitializeParams struct {
 	RootURI          string            `json:"rootUri"`
 	RootPath         string            `json:"rootPath"`
 	WorkspaceFolders []WorkspaceFolder `json:"workspaceFolders"`
-	Settings         ServerSettings    `json:"initializationOptions"`
 }
-
-type ServerSettings struct{}
 
 type WorkspaceFolder struct {
 	URI  string `json:"uri"`
@@ -33,9 +30,19 @@ type TextDocumentSyncOptions struct {
 
 type ServerCapabilities struct {
 	TextDocumentSync        TextDocumentSyncOptions `json:"textDocumentSync"`
+	Workspace               WorkspaceCapabilities   `json:"workspace"`
 	DefinitionProvider      bool                    `json:"definitionProvider,omitempty"`
 	WorkspaceSymbolProvider bool                    `json:"workspaceSymbolProvider,omitempty"`
 	DocumentSymbolProvider  bool                    `json:"documentSymbolProvider,omitempty"`
+}
+
+type WorkspaceCapabilities struct {
+	Configuration          bool                             `json:"configuration,omitempty"`
+	DidChangeConfiguration DidChangeConfigurationCapability `json:"didChangeConfiguration"`
+}
+
+type DidChangeConfigurationCapability struct {
+	DynamicRegistration bool `json:"dynamicRegistration"`
 }
 
 type InitializeResponse struct {
@@ -63,9 +70,6 @@ func (s *LspServer) handleInitialize(req RPCRequest) {
 		}
 	}
 
-	// TODO: deal with config
-
-	s.initialized = true
 	s.sendResult(req.ID, InitializeResponse{
 		Info: ServerInfo{
 			Name:    name,
@@ -80,8 +84,15 @@ func (s *LspServer) handleInitialize(req RPCRequest) {
 			WorkspaceSymbolProvider: true,
 			DefinitionProvider:      true,
 			DocumentSymbolProvider:  true,
+			Workspace: WorkspaceCapabilities{
+				Configuration: true,
+				DidChangeConfiguration: DidChangeConfigurationCapability{
+					DynamicRegistration: true,
+				},
+			},
 		},
 	})
+	s.initialized = true
 }
 
 func (s *LspServer) handleInitialized(_ RPCRequest) {

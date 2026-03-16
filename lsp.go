@@ -68,7 +68,9 @@ type fileCache struct {
 }
 
 type LspServer struct {
-	ctags       *CTags
+	ctags    *CTags
+	settings *Settings
+
 	rootURI     string
 	initialized bool
 	cache       fileCache
@@ -106,10 +108,6 @@ func (s *LspServer) handleRequest(req RPCRequest) {
 	b, _ := json.Marshal(req)
 	slog.Debug("got request", "req", b)
 
-	if req.isNotification() {
-		return
-	}
-
 	if !s.initialized && req.Method != "initialize" && req.Method != "shutdown" && req.Method != "exit" {
 		s.sendError(req.ID, InvalidParamsCode, "Server not initialized.", "Received request before successful initialization")
 		return
@@ -134,6 +132,8 @@ func (s *LspServer) handleRequest(req RPCRequest) {
 		s.handleTextDocumentDefinition(req)
 	case "textDocument/documentSymbol":
 		s.handleTextDocumentDocumentSymbol(req)
+	case "workspace/didChangeConfiguration":
+		s.handleWorkspaceDidChangeConfiguration(req)
 	case "workspace/symbol":
 		s.handleWorkspaceSymbol(req)
 	default:
