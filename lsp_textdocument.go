@@ -29,9 +29,9 @@ func (s *LspServer) handleTextDocumentDidOpen(req RPCRequest) {
 		return
 	}
 
-	s.cache.mu.Lock()
-	s.cache.content[uri] = strings.Split(params.TextDocument.Text, "\n")
-	s.cache.mu.Unlock()
+	s.mu.Lock()
+	s.fileCache[uri] = strings.Split(params.TextDocument.Text, "\n")
+	s.mu.Unlock()
 }
 
 type TextDocumentDidChangeParams struct {
@@ -56,9 +56,9 @@ func (s *LspServer) handleTextDocumentDidChange(req RPCRequest) {
 
 	// FIXME: is it right ???
 	if len(params.ContentChanges) > 0 {
-		s.cache.mu.Lock()
-		s.cache.content[uri] = strings.Split(params.ContentChanges[0].Text, "\n")
-		s.cache.mu.Unlock()
+		s.mu.Lock()
+		s.fileCache[uri] = strings.Split(params.ContentChanges[0].Text, "\n")
+		s.mu.Unlock()
 	}
 }
 
@@ -77,9 +77,9 @@ func (s *LspServer) handleTextDocumentDidClose(req RPCRequest) {
 		return
 	}
 
-	s.cache.mu.Lock()
-	delete(s.cache.content, uri)
-	s.cache.mu.Unlock()
+	s.mu.Lock()
+	delete(s.fileCache, uri)
+	s.mu.Unlock()
 }
 
 type TextDocumentDidSaveParams struct {
@@ -106,6 +106,35 @@ func (s *LspServer) handleTextDocumentDidSave(req RPCRequest) {
 	// TODO: rescan for root markers
 }
 
-func (s *LspServer) handleTextDocumentDefinition(req RPCRequest) {}
+type Position struct {
+	Line      int `json:"line"`
+	Character int `json:"character"`
+}
+
+type TextDocumentDefinitionParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+	Position     Position               `json:"position"`
+}
+
+type Location struct {
+	URI   string `json:"uri"`
+	Range Range  `json:"range"`
+}
+
+func (s *LspServer) handleTextDocumentDefinition(req RPCRequest) {
+	var params TextDocumentDefinitionParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		s.invalidParams(req.ID, err)
+		return
+	}
+
+	uri, err := normalizeFileURI(params.TextDocument.URI)
+	if err != nil {
+		s.invalidParams(req.ID, err)
+		return
+	}
+
+	_ = uri
+}
 
 func (s *LspServer) handleTextDocumentDocumentSymbol(req RPCRequest) {}

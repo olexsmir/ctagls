@@ -62,18 +62,15 @@ type RPCError struct {
 	Data    any    `json:"data,omitempty"`
 }
 
-type fileCache struct {
-	mu      sync.RWMutex
-	content map[string][]string
-}
-
 type LspServer struct {
+	initialized bool
+	rootURI     string
+
+	mu        sync.RWMutex
+	fileCache map[string][]string
+
 	ctags    *CTags
 	settings *Settings
-
-	rootURI     string
-	initialized bool
-	cache       fileCache
 
 	input  io.Reader
 	output io.Writer
@@ -81,11 +78,9 @@ type LspServer struct {
 
 func NewLspServer(in io.Reader, out io.Writer) *LspServer {
 	return &LspServer{
-		input:  in,
-		output: out,
-		cache: fileCache{
-			content: make(map[string][]string),
-		},
+		input:     in,
+		output:    out,
+		fileCache: make(map[string][]string),
 	}
 }
 
