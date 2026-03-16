@@ -125,8 +125,6 @@ func (s *LspServer) handleRequest(req RPCRequest) {
 		s.handleTextDocumentDidChange(req)
 	case "textDocument/didClose":
 		s.handleTextDocumentDidClose(req)
-	case "textDocument/didSave":
-		s.handleTextDocumentDidSave(req)
 	case "textDocument/definition":
 		s.handleTextDocumentDefinition(req)
 	case "textDocument/documentSymbol":

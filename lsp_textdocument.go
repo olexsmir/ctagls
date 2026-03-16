@@ -82,28 +82,8 @@ func (s *LspServer) handleTextDocumentDidClose(req RPCRequest) {
 	s.mu.Unlock()
 }
 
-type TextDocumentDidSaveParams struct {
-	TextDocument TextDocumentIdentifier `json:"textDocument"`
-}
-
 type TextDocumentIdentifier struct {
 	URI string `json:"uri"`
-}
-
-func (s *LspServer) handleTextDocumentDidSave(req RPCRequest) {
-	var params TextDocumentDidSaveParams
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return
-	}
-
-	uri, err := uriToPath(params.TextDocument.URI)
-	if err != nil {
-		return
-	}
-
-	_ = uri
-
-	// TODO: rescan for root markers
 }
 
 type Position struct {
