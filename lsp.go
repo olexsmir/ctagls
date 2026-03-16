@@ -111,6 +111,8 @@ func (s *LspServer) handleRequest(req RPCRequest) {
 	switch req.Method {
 	case "initialize":
 		s.handleInitialize(req)
+	case "initialized":
+		// here so we wound't fail
 	case "shutdown":
 		s.handleShutdown(req)
 	case "exit":
@@ -127,6 +129,10 @@ func (s *LspServer) handleRequest(req RPCRequest) {
 		s.handleTextDocumentDefinition(req)
 	case "textDocument/documentSymbol":
 		s.handleTextDocumentDocumentSymbol(req)
+	case "textDocument/codeAction":
+		s.handleTextDocumentCodeAction(req)
+	case "workspace/executeCommand":
+		s.handleWorkspaceExecuteCommand(req)
 	case "workspace/didChangeConfiguration":
 		s.handleWorkspaceDidChangeConfiguration(req)
 	case "workspace/symbol":

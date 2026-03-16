@@ -31,9 +31,15 @@ type TextDocumentSyncOptions struct {
 type ServerCapabilities struct {
 	TextDocumentSync        TextDocumentSyncOptions `json:"textDocumentSync"`
 	Workspace               WorkspaceCapabilities   `json:"workspace"`
+	ExecuteCommandProvider  ExecuteCommandOptions   `json:"executeCommandProvider"`
 	DefinitionProvider      bool                    `json:"definitionProvider,omitempty"`
 	WorkspaceSymbolProvider bool                    `json:"workspaceSymbolProvider,omitempty"`
 	DocumentSymbolProvider  bool                    `json:"documentSymbolProvider,omitempty"`
+	CodeActionProvider      bool                    `json:"codeActionProvider"`
+}
+
+type ExecuteCommandOptions struct {
+	Commands []string `json:"commands"`
 }
 
 type WorkspaceCapabilities struct {
@@ -70,29 +76,35 @@ func (s *LspServer) handleInitialize(req RPCRequest) {
 		}
 	}
 
+	s.initialized = true
 	s.sendResult(req.ID, InitializeResponse{
 		Info: ServerInfo{
 			Name:    name,
 			Version: version,
 		},
 		Capabilities: ServerCapabilities{
+			DefinitionProvider:     true,
+			DocumentSymbolProvider: true,
+			CodeActionProvider:     true,
 			TextDocumentSync: TextDocumentSyncOptions{
 				Change:    1, //  TextDocumentSyncKindFull // TODO: improve me
 				OpenClose: true,
 				Save:      true,
 			},
 			WorkspaceSymbolProvider: true,
-			DefinitionProvider:      true,
-			DocumentSymbolProvider:  true,
 			Workspace: WorkspaceCapabilities{
 				Configuration: true,
 				DidChangeConfiguration: DidChangeConfigurationCapability{
 					DynamicRegistration: true,
 				},
 			},
+			ExecuteCommandProvider: ExecuteCommandOptions{
+				Commands: []string{
+					CtagLSReindexAction,
+				},
+			},
 		},
 	})
-	s.initialized = true
 }
 
 func (s *LspServer) handleInitialized(_ RPCRequest) {

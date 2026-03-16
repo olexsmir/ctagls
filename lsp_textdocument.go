@@ -138,3 +138,58 @@ func (s *LspServer) handleTextDocumentDefinition(req RPCRequest) {
 }
 
 func (s *LspServer) handleTextDocumentDocumentSymbol(req RPCRequest) {}
+
+type Range struct {
+	Start Position `json:"start"`
+	End   Position `json:"end"`
+}
+
+type TextDocumentCodeActionParams struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+	Range        Range                  `json:"range"`
+	Context      CodeActionContext      `json:"context"`
+}
+
+type CodeActionContext struct {
+	Diagnostics []Diagnostic `json:"diagnostics"`
+}
+
+type Diagnostic struct {
+	Range    Range  `json:"range"`
+	Message  string `json:"message"`
+	Severity *int   `json:"severity,omitempty"`
+	Source   string `json:"source,omitempty"`
+}
+
+type Command struct {
+	Title     string `json:"title"`
+	Command   string `json:"command"`
+	Arguments []any  `json:"arguments,omitempty"`
+}
+
+type CodeAction struct {
+	Title   string   `json:"title"`
+	Kind    string   `json:"kind"`
+	Command *Command `json:"command"`
+}
+
+const CtagLSReindexAction = "ctagls.reindex"
+
+func (s *LspServer) handleTextDocumentCodeAction(req RPCRequest) {
+	var params TextDocumentCodeActionParams
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		s.invalidParams(req.ID, err)
+		return
+	}
+
+	s.sendResult(req.ID, []CodeAction{
+		{
+			Title: "Re-index tags",
+			Kind:  "source",
+			Command: &Command{
+				Title:   "Re-index tags",
+				Command: CtagLSReindexAction,
+			},
+		},
+	})
+}
