@@ -63,17 +63,22 @@ func (s *LspServer) handleInitialize(req RPCRequest) {
 		return
 	}
 
-	rootURI, err := s.selectRootURI(params)
+	rootURI, rootPath, err := s.selectRoots(params)
 	if err != nil {
 		s.sendError(req.ID, InvalidParamsCode, "Invalid paraams", err.Error())
 		return
 	}
 
-	if rootURI != "" {
-		if err := s.setRootURI(rootURI); err != nil {
-			s.sendError(req.ID, InvalidParamsCode, "Invalid paraams", err.Error())
-			return
-		}
+	s.root = rootPath
+	s.rootURI = rootURI
+
+	s.settings = &Settings{}
+	s.settings.EnsureDefaults(s.root)
+	s.setupCtags()
+
+	if err := s.reindex(); err != nil {
+		s.internalError(req.ID, err)
+		return
 	}
 
 	s.initialized = true
@@ -121,24 +126,29 @@ func (s *LspServer) handleExit(_ RPCRequest) {
 	os.Exit(0)
 }
 
-func (s *LspServer) selectRootURI(params InitializeParams) (string, error) {
+func (s *LspServer) selectRoots(params InitializeParams) (uri string, path string, err error) {
 	if len(params.WorkspaceFolders) > 0 {
 		// TODO: support multiple workspaces
-		return params.WorkspaceFolders[0].URI, nil
+		uri = params.WorkspaceFolders[0].URI
+		path, err = uriToPath(uri)
+		return
 	}
 
 	if params.RootURI != "" {
-		return params.RootURI, nil
+		uri = params.RootURI
+		path, err = uriToPath(uri)
+		return
 	}
 
 	if params.RootPath != "" {
 		cleanPath := filepath.Clean(params.RootPath)
-		absPath, err := filepath.Abs(cleanPath)
+		path, err = filepath.Abs(cleanPath)
 		if err != nil {
-			return "", err
+			return
 		}
-		return pathToFileURI(absPath), nil
+		uri = pathToFileURI(path)
+		return
 	}
 
-	return "", nil
+	return "", "", nil
 }

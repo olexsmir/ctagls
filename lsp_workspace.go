@@ -28,7 +28,13 @@ func (s *LspServer) handleWorkspaceDidChangeConfiguration(req RPCRequest) {
 		CTags:    params.Settings.CTags,
 		TagsFile: params.Settings.TagsFile,
 	}
-	s.settings.EnsureDefaults()
+	s.settings.EnsureDefaults(s.root)
+	s.setupCtags()
+
+	if err := s.reindex(); err != nil {
+		s.internalError(req.ID, err)
+		return
+	}
 }
 
 type WorkspaceExecuteCommandParams struct {
@@ -45,17 +51,42 @@ func (s *LspServer) handleWorkspaceExecuteCommand(req RPCRequest) {
 
 	switch params.Command {
 	case CtagLSReindexAction:
+		if err := s.regenerateTags(); err != nil {
+			s.sendError(req.ID, InternalErrorCode, "ctag regenerate failed", err.Error())
+			return
+		}
 		if err := s.reindex(); err != nil {
 			s.sendError(req.ID, InternalErrorCode, "reindex failed", err.Error())
 			return
 		}
+
 		s.sendResult(req.ID, struct{}{})
+
 	default:
 		s.sendError(req.ID, MethodNotFoundCode, fmt.Sprintf("Unknown command: %s", params.Command), nil)
 		return
 	}
 }
 
+func (s *LspServer) setupCtags() {
+	ctags := NewCTags(s.settings.CTags, s.settings.TagsFile)
+	s.ctags = ctags
+}
+
+// reindex, reindexes the tags file
 func (s *LspServer) reindex() error {
+	tags, err := s.ctags.Parse()
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	s.tagEntries = tags
+	s.mu.Unlock()
+
+	return nil
+}
+
+func (s *LspServer) regenerateTags() error {
 	return nil
 }

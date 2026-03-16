@@ -65,9 +65,11 @@ type RPCError struct {
 type LspServer struct {
 	initialized bool
 	rootURI     string
+	root        string
 
-	mu        sync.RWMutex
-	fileCache map[string][]string
+	mu         sync.RWMutex
+	tagEntries []TagEntry
+	fileCache  map[string][]string
 
 	ctags    *CTags
 	settings *Settings
@@ -188,11 +190,6 @@ func (s *LspServer) readMsg(r *bufio.Reader) (RPCRequest, error) {
 }
 
 func (s *LspServer) isRootSet() bool { return s.rootURI != "" }
-func (s *LspServer) setRootURI(rootURI string) error {
-	s.rootURI = rootURI
-	// TODO: resolve tags files in the root
-	return nil
-}
 
 func (s *LspServer) sendResponse(resp any) {
 	body, _ := json.Marshal(resp)
@@ -238,6 +235,10 @@ func (s *LspServer) sendError(id *json.RawMessage, code int, msg string, data an
 	})
 }
 
+func (s *LspServer) internalError(id *json.RawMessage, err error) {
+	s.sendError(id, InternalErrorCode, "Server error", err.Error())
+}
+
 func (s *LspServer) invalidParams(id *json.RawMessage, err error) {
 	s.sendError(id, InvalidParamsCode, "Invalid params", err.Error())
 }
@@ -256,7 +257,7 @@ func isInvalidID(id *json.RawMessage) bool {
 	return json.Unmarshal(*id, &n) != nil
 }
 
-func normalizeFileURI(uri string) (string, error) {
+func uriToPath(uri string) (string, error) {
 	parsed, err := url.Parse(uri)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse URI %q: %w", uri, err)
@@ -273,7 +274,7 @@ func normalizeFileURI(uri string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve path %q: %w", path, err)
 	}
-	return pathToFileURI(absPath), nil
+	return absPath, nil
 }
 
 func pathToFileURI(path string) string {

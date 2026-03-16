@@ -24,7 +24,7 @@ func (s *LspServer) handleTextDocumentDidOpen(req RPCRequest) {
 		return
 	}
 
-	uri, err := normalizeFileURI(params.TextDocument.URI)
+	uri, err := uriToPath(params.TextDocument.URI)
 	if err != nil {
 		return
 	}
@@ -49,7 +49,7 @@ func (s *LspServer) handleTextDocumentDidChange(req RPCRequest) {
 		return
 	}
 
-	uri, err := normalizeFileURI(params.TextDocument.Text)
+	uri, err := uriToPath(params.TextDocument.URI)
 	if err != nil {
 		return
 	}
@@ -72,7 +72,7 @@ func (s *LspServer) handleTextDocumentDidClose(req RPCRequest) {
 		return
 	}
 
-	uri, err := normalizeFileURI(params.TextDocument.URI)
+	uri, err := uriToPath(params.TextDocument.URI)
 	if err != nil {
 		return
 	}
@@ -96,7 +96,7 @@ func (s *LspServer) handleTextDocumentDidSave(req RPCRequest) {
 		return
 	}
 
-	uri, err := normalizeFileURI(params.TextDocument.URI)
+	uri, err := uriToPath(params.TextDocument.URI)
 	if err != nil {
 		return
 	}
@@ -128,7 +128,7 @@ func (s *LspServer) handleTextDocumentDefinition(req RPCRequest) {
 		return
 	}
 
-	uri, err := normalizeFileURI(params.TextDocument.URI)
+	uri, err := uriToPath(params.TextDocument.URI)
 	if err != nil {
 		s.invalidParams(req.ID, err)
 		return
