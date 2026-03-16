@@ -208,8 +208,8 @@ func (s *LspServer) sendResult(id *json.RawMessage, result any) {
 	})
 }
 
-func (s *LspServer) sendMessage(err error) {
-	slog.Debug("send message", "err", err)
+func (s *LspServer) sendMessage(msg string) {
+	slog.Debug("send message", "msg", msg)
 	s.sendResponse(RPCNotification{
 		RPC:    "2.0",
 		Method: "window/showMessage",
@@ -241,6 +241,18 @@ func (s *LspServer) internalError(id *json.RawMessage, err error) {
 
 func (s *LspServer) invalidParams(id *json.RawMessage, err error) {
 	s.sendError(id, InvalidParamsCode, "Invalid params", err.Error())
+}
+
+func (s *LspServer) setupSettingsAndReindexTags(settings *Settings) {
+	s.settings = settings
+	s.settings.EnsureDefaults(s.root)
+
+	ctags := NewCTags(s.settings.CTags, s.settings.TagsFile)
+	s.ctags = ctags
+
+	if err := s.reindex(); err != nil {
+		s.sendMessage("ctagls: failed to load tags: " + err.Error())
+	}
 }
 
 func isInvalidID(id *json.RawMessage) bool {

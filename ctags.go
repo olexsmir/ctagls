@@ -3,8 +3,10 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -32,6 +34,15 @@ func (c *CTags) CheckIfInstalled() error {
 	return nil
 }
 
+func (c *CTags) Regenerate() error {
+	cmd := exec.Command(c.bin, "-R", "--output-format=u-ctags", "-f", c.tags, filepath.Dir(c.tags))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ctags failed: %w\n%s", err, out)
+	}
+	return nil
+}
+
 type TagEntry struct {
 	Name    string
 	Path    string
@@ -44,6 +55,9 @@ type TagEntry struct {
 func (c *CTags) Parse() ([]TagEntry, error) {
 	file, err := os.Open(c.tags)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	defer file.Close()

@@ -88,5 +88,5 @@ func (s *LspServer) reindex() error {
 }
 
 func (s *LspServer) regenerateTags() error {
-	return nil
+	return s.ctags.Regenerate()
 }
