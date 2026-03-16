@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/url"
 	"path/filepath"
 	"strconv"
@@ -102,6 +103,9 @@ func (s *LspServer) Handle() error {
 }
 
 func (s *LspServer) handleRequest(req RPCRequest) {
+	b, _ := json.Marshal(req)
+	slog.Debug("got request", "req", b)
+
 	if req.isNotification() {
 		return
 	}
@@ -182,7 +186,7 @@ func (s *LspServer) readMsg(r *bufio.Reader) (RPCRequest, error) {
 	return req, nil
 }
 
-func (s *LspServer) isRootSet() bool { return s.rootURI == "" }
+func (s *LspServer) isRootSet() bool { return s.rootURI != "" }
 func (s *LspServer) setRootURI(rootURI string) error {
 	s.rootURI = rootURI
 	// TODO: resolve tags files in the root
@@ -196,6 +200,9 @@ func (s *LspServer) sendResponse(resp any) {
 }
 
 func (s *LspServer) sendResult(id *json.RawMessage, result any) {
+	b, _ := json.Marshal(result)
+	slog.Debug("send result", "id", id, "result", string(b))
+
 	s.sendResponse(RPCSuccessResponse{
 		RPC:    "2.0",
 		ID:     id,
@@ -204,6 +211,7 @@ func (s *LspServer) sendResult(id *json.RawMessage, result any) {
 }
 
 func (s *LspServer) sendMessage(err error) {
+	slog.Debug("send message", "err", err)
 	s.sendResponse(RPCNotification{
 		RPC:    "2.0",
 		Method: "window/showMessage",
@@ -215,6 +223,9 @@ func (s *LspServer) sendMessage(err error) {
 }
 
 func (s *LspServer) sendError(id *json.RawMessage, code int, msg string, data any) {
+	b, _ := json.Marshal(data)
+	slog.Debug("send error: ", "id", id, "code", code, "msg", msg, "data", b)
+
 	s.sendResponse(RPCErrorResponse{
 		RPC: "2.0",
 		ID:  id,
