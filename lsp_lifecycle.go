@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"net/url"
 	"os"
 	"path/filepath"
 )
@@ -99,7 +98,7 @@ func (s *LspServer) handleExit(_ RPCRequest) {
 	os.Exit(0)
 }
 
-func (s LspServer) selectRootURI(params InitializeParams) (string, error) {
+func (s *LspServer) selectRootURI(params InitializeParams) (string, error) {
 	if len(params.WorkspaceFolders) > 0 {
 		// TODO: support multiple workspaces
 		return params.WorkspaceFolders[0].URI, nil
@@ -119,9 +118,4 @@ func (s LspServer) selectRootURI(params InitializeParams) (string, error) {
 	}
 
 	return "", nil
-}
-
-func pathToFileURI(path string) string {
-	slashPath := filepath.ToSlash(path)
-	return (&url.URL{Scheme: "file", Path: slashPath}).String()
 }

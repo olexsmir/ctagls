@@ -6,8 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const (
@@ -16,6 +19,8 @@ const (
 	MethodNotFoundCode = -32601
 	InvalidParamsCode  = -32602
 	InternalErrorCode  = -32603
+
+	MessageTypeWarning = 2
 )
 
 type RPCRequest struct {
@@ -31,6 +36,11 @@ type RPCNotification struct {
 	RPC    string `json:"jsonrpc"`
 	Method string `json:"method"`
 	Params any    `json:"params,omitempty"`
+}
+
+type ShowMessageParams struct {
+	Type    int    `json:"type"`
+	Message string `json:"message"`
 }
 
 type RPCSuccessResponse struct {
@@ -51,10 +61,16 @@ type RPCError struct {
 	Data    any    `json:"data,omitempty"`
 }
 
+type fileCache struct {
+	mu      sync.RWMutex
+	content map[string][]string
+}
+
 type LspServer struct {
 	ctags       *CTags
 	rootURI     string
 	initialized bool
+	cache       fileCache
 
 	input  io.Reader
 	output io.Writer
@@ -64,6 +80,9 @@ func NewLspServer(in io.Reader, out io.Writer) *LspServer {
 	return &LspServer{
 		input:  in,
 		output: out,
+		cache: fileCache{
+			content: make(map[string][]string),
+		},
 	}
 }
 
@@ -163,6 +182,7 @@ func (s *LspServer) readMsg(r *bufio.Reader) (RPCRequest, error) {
 	return req, nil
 }
 
+func (s *LspServer) isRootSet() bool { return s.rootURI == "" }
 func (s *LspServer) setRootURI(rootURI string) error {
 	s.rootURI = rootURI
 	// TODO: resolve tags files in the root
@@ -183,6 +203,17 @@ func (s *LspServer) sendResult(id *json.RawMessage, result any) {
 	})
 }
 
+func (s *LspServer) sendMessage(err error) {
+	s.sendResponse(RPCNotification{
+		RPC:    "2.0",
+		Method: "window/showMessage",
+		Params: ShowMessageParams{
+			Type:    MessageTypeWarning,
+			Message: msg,
+		},
+	})
+}
+
 func (s *LspServer) sendError(id *json.RawMessage, code int, msg string, data any) {
 	s.sendResponse(RPCErrorResponse{
 		RPC: "2.0",
@@ -193,6 +224,10 @@ func (s *LspServer) sendError(id *json.RawMessage, code int, msg string, data an
 			Data:    data,
 		},
 	})
+}
+
+func (s *LspServer) invalidParams(id *json.RawMessage, err error) {
+	s.sendError(id, InvalidParamsCode, "Invalid params", err.Error())
 }
 
 func isInvalidID(id *json.RawMessage) bool {
@@ -207,4 +242,29 @@ func isInvalidID(id *json.RawMessage) bool {
 
 	var n int64
 	return json.Unmarshal(*id, &n) != nil
+}
+
+func normalizeFileURI(uri string) (string, error) {
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse URI %q: %w", uri, err)
+	}
+	if parsed.Scheme != "file" {
+		return "", fmt.Errorf("expected file:// URI: %q", uri)
+	}
+	if parsed.Path == "" {
+		return "", fmt.Errorf("empty file URI")
+	}
+
+	path := filepath.Clean(filepath.FromSlash(parsed.Path))
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve path %q: %w", path, err)
+	}
+	return pathToFileURI(absPath), nil
+}
+
+func pathToFileURI(path string) string {
+	slashPath := filepath.ToSlash(path)
+	return (&url.URL{Scheme: "file", Path: slashPath}).String()
 }
