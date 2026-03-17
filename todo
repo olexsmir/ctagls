@@ -1,0 +1,9 @@
+- TODO tests
+- TODO e2e tests
+- TODO dont start if there's no tags file
+- TODO completion (opt out?)
+- TODO i dont think workspace/symbols is implemented correctly
+- TODO dont send whole file on change
+- TODO check ctags installation on start
+- TODO add `--version`
+- TODO opt in logging

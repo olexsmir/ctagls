@@ -72,15 +72,6 @@ func (s *LspServer) handleInitialize(req RPCRequest) {
 	s.root = rootPath
 	s.rootURI = rootURI
 
-	s.settings = &Settings{}
-	s.settings.EnsureDefaults(s.root)
-	s.setupCtags()
-
-	if err := s.reindex(); err != nil {
-		s.internalError(req.ID, err)
-		return
-	}
-
 	s.initialized = true
 	s.sendResult(req.ID, InitializeResponse{
 		Info: ServerInfo{
