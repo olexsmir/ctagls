@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -151,7 +152,66 @@ func (s *LspServer) handleTextDocumentDefinition(req RPCRequest) {
 	}
 }
 
-func (s *LspServer) handleTextDocumentDocumentSymbol(req RPCRequest) {}
+type TextDocumentDocumentSymbol struct {
+	TextDocument TextDocumentIdentifier `json:"textDocument"`
+}
+
+func (s *LspServer) handleTextDocumentDocumentSymbol(req RPCRequest) {
+	var params TextDocumentDocumentSymbol
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		s.invalidParams(req.ID, err)
+		return
+	}
+
+	uri, err := uriToPath(params.TextDocument.URI)
+	if err != nil {
+		s.invalidParams(req.ID, err)
+		return
+	}
+
+	var symbols []SymbolInformation
+	s.mu.RLock()
+
+	var documentEntries []TagEntry
+	for _, entry := range s.tagEntries {
+		if entry.Path != uri {
+			continue
+		}
+		documentEntries = append(documentEntries, entry)
+	}
+
+	sort.SliceStable(documentEntries, func(i, j int) bool {
+		return documentEntries[i].Line < documentEntries[j].Line
+	})
+
+	for _, entry := range documentEntries {
+		kind := s.ctags.LspSymbolKind(entry.Kind)
+		// if kind == 0 {
+		// 	continue
+		// }
+
+		content, err := s.getFileContent(entry.Path)
+		if err != nil {
+			s.sendMessage("failed to load content for: " + entry.Path)
+			continue
+		}
+
+		symbolRange := s.findSymbolRangeInFile(content, entry.Name, entry.Line)
+		symbols = append(symbols, SymbolInformation{
+			Name:          entry.Name,
+			Kind:          kind,
+			ContainerName: entry.Scope,
+			Location: Location{
+				URI:   pathToFileURI(entry.Path),
+				Range: symbolRange,
+			},
+		})
+	}
+
+	s.mu.RUnlock()
+
+	s.sendResult(req.ID, symbols)
+}
 
 type Range struct {
 	Start Position `json:"start"`
